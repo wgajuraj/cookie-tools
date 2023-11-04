@@ -1,5 +1,5 @@
 ﻿using System.Diagnostics;
-using System.Linq;
+// using System.Linq;
 using System.Text;
 using CookieLocker.Ciphering;
 
@@ -36,7 +36,7 @@ internal static class Program
         cipher0.EncryptFile(SourceFile, DestFile);
     }
 
-    private static void Main(string[] args)
+    private static void Main()
     {
         if (!File.Exists("keys"))
         {
@@ -56,8 +56,15 @@ internal static class Program
                         Console.Write("Choose a new password: ");
                         var pass = Console.ReadLine();
                         Console.Clear();
-                        var encryptedKey = KeyGenerator.EncryptKey(key, pass);
-                        KeyGenerator.WriteToFile(encryptedKey, "keys");
+                        if (pass != null)
+                        {
+                            var encryptedKey = KeyGenerator.EncryptKey(key, pass);
+                            KeyGenerator.WriteToFile(encryptedKey, "keys");
+                        }
+                        else
+                        {
+                            return;
+                        }
 
                         var cipher0 = new Cipher(key, iv);
                         cipher0.EncryptFile(SourceFile, DestFile);
@@ -66,9 +73,7 @@ internal static class Program
                         break;
                     case 'n':
                         Console.Clear();
-                        validAnswer = true;
                         return;
-                        break;
                     default:
                         Console.Clear();
                         break;
@@ -120,10 +125,17 @@ internal static class Program
                     var pass = Console.ReadLine();
                     Console.Clear();
                     var encryptedKey = KeyGenerator.ReadFromFile("keys");
-                    var decryptedKey = KeyGenerator.DecryptKey(encryptedKey, pass);
-                    var iv = KeyGenerator.GenerateIv();
-                    var cipher = new Cipher(decryptedKey, iv);
-                    cipher.DecryptFile(DestFile, DestFile2);
+                    if (pass != null)
+                    {
+                        var decryptedKey = KeyGenerator.DecryptKey(encryptedKey, pass);
+                        var iv = KeyGenerator.GenerateIv();
+                        var cipher = new Cipher(decryptedKey, iv);
+                        cipher.DecryptFile(DestFile, DestFile2);
+                    }
+                    else
+                    {
+                        return;
+                    }
 
                     break;
                 default:
@@ -140,17 +152,6 @@ internal static class Program
     // Console.WriteLine(key.SequenceEqual(decryptedKey));
     // Console.WriteLine("Key: \t\t" + ByteArrayToString(key));
     // Console.WriteLine("Decrypted Key: \t" + ByteArrayToString(decryptedKey));
-
-                
-                
-    // CIPHER FILE //
-
-    // Cipher.EncryptFile(sourceFile, destFile);
-    // File.Delete(sourceFile);
-    // Cipher.DecryptFile(destFile, @"C:\Users\gajew\Documents\My Projects\CookieLocker\test_files\cat1\coc.txt");
-
-                
-
-
+    
 
 }
