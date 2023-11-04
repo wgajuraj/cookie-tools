@@ -5,21 +5,22 @@ namespace CookieLocker.Ciphering;
 public class Cipher
 {
     private readonly string _encryptionKey;
-    private readonly string _iv = "j44yJIvFYcntbmkPwrse0w==";
-    public Cipher(byte[] key, byte[] iv)
+    public Cipher(byte[] key)
     {
         _encryptionKey = Convert.ToBase64String(key);
-        // _iv = Convert.ToBase64String(iv);
     }
     
     public void EncryptFile(string inputFile, string outputFile)
     {
         using var aesAlg = Aes.Create();
         aesAlg.Key = Convert.FromBase64String(_encryptionKey);
-        aesAlg.IV = Convert.FromBase64String(_iv);
+        aesAlg.GenerateIV();
 
         using var fsInput = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
         using var fsOutput = new FileStream(outputFile, FileMode.Create, FileAccess.Write);
+        
+        fsOutput.Write(aesAlg.IV, 0, aesAlg.IV.Length);
+        
         using var encryptor = aesAlg.CreateEncryptor();
         using var cryptoStream = new CryptoStream(fsOutput, encryptor, CryptoStreamMode.Write);
         
@@ -35,10 +36,18 @@ public class Cipher
     {
         using var aesAlg = Aes.Create();
         aesAlg.Key = Convert.FromBase64String(_encryptionKey);
-        aesAlg.IV = Convert.FromBase64String(_iv);
 
         using var fsInput = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
         using var fsOutput = new FileStream(outputFile, FileMode.Create, FileAccess.Write);
+
+        var iv = new byte[aesAlg.BlockSize / 8];
+        var bytesReadIv = fsInput.Read(iv, 0, iv.Length);
+        if (bytesReadIv < iv.Length)
+        {
+            throw new Exception("Failed to read IV from file.");
+        }
+        aesAlg.IV = iv;
+        
         using var decryptor = aesAlg.CreateDecryptor();
         using var cryptoStream = new CryptoStream(fsOutput, decryptor, CryptoStreamMode.Write);
         

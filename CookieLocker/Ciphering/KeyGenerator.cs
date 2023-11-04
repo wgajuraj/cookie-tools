@@ -12,15 +12,6 @@ public static class KeyGenerator
         return aes.Key;
     }
     
-    public static byte[] GenerateIv()
-    {
-        using var aes = Aes.Create();
-        aes.BlockSize = 128;
-        aes.GenerateIV();
-        return aes.IV;
-    }
-    
-    
     public static byte[] EncryptKey(byte[] key, string passphrase)
     {
         using var aes = Aes.Create();

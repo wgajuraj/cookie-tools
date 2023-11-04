@@ -10,31 +10,6 @@ internal static class Program
     private const string SourceFile = @"test_files\cookies.txt";
     private const string DestFile = @"test_files\cat1\cookies_encrypted";
     private const string DestFile2 = @"test_files\cat1\cookies_decrypted.txt";
-            
-    public static string ByteArrayToString(byte[] byteArray)
-    {
-        var hex = new StringBuilder(byteArray.Length * 2);
-        foreach (var b in byteArray)
-            hex.Append($"{b:x2}");
-        return hex.ToString();
-    }
-
-    public static void DecryptCookies(string pass)
-    {
-        var encryptedKey = KeyGenerator.ReadFromFile("keys");
-        var decryptedKey = KeyGenerator.DecryptKey(encryptedKey, pass);
-        var iv = KeyGenerator.GenerateIv();
-        var cipher = new Cipher(decryptedKey, iv);
-        cipher.DecryptFile(DestFile, DestFile2);
-    }
-            
-    public static void EncryptCookies()
-    {
-        var iv = KeyGenerator.GenerateIv();
-        var key = KeyGenerator.ReadFromFile("keys");
-        var cipher0 = new Cipher(key, iv);
-        cipher0.EncryptFile(SourceFile, DestFile);
-    }
 
     private static void Main()
     {
@@ -52,7 +27,6 @@ internal static class Program
                         Console.Clear();
 
                         var key = KeyGenerator.GenerateKey();
-                        var iv = KeyGenerator.GenerateIv();
                         Console.Write("Choose a new password: ");
                         var pass = Console.ReadLine();
                         Console.Clear();
@@ -66,7 +40,7 @@ internal static class Program
                             return;
                         }
 
-                        var cipher0 = new Cipher(key, iv);
+                        var cipher0 = new Cipher(key);
                         cipher0.EncryptFile(SourceFile, DestFile);
                         Console.WriteLine("File encrypted successfully");
                         validAnswer = true;
@@ -120,21 +94,36 @@ internal static class Program
                     break;
 
                 case "9":
-                    Console.Clear();
-                    Console.Write("Password: ");
-                    var pass = Console.ReadLine();
-                    Console.Clear();
-                    var encryptedKey = KeyGenerator.ReadFromFile("keys");
-                    if (pass != null)
+                    var validPassword = false;
+                    while (!validPassword)
                     {
-                        var decryptedKey = KeyGenerator.DecryptKey(encryptedKey, pass);
-                        var iv = KeyGenerator.GenerateIv();
-                        var cipher = new Cipher(decryptedKey, iv);
-                        cipher.DecryptFile(DestFile, DestFile2);
-                    }
-                    else
-                    {
-                        return;
+                        Console.Clear();
+                        Console.Write("Password: ");
+                        var pass = Console.ReadLine();
+                        Console.Clear();
+                        var encryptedKey = KeyGenerator.ReadFromFile("keys");
+                        if (pass != null)
+                        {
+                            try
+                            {
+                                var decryptedKey = KeyGenerator.DecryptKey(encryptedKey, pass);
+                                var cipher = new Cipher(decryptedKey);
+                                cipher.DecryptFile(DestFile, DestFile2);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.Clear();
+                                Console.WriteLine("Invalid password");
+                                Console.WriteLine("Press any key to continue...");
+                                Console.ReadKey(true);
+                                continue;
+                            }
+                            validPassword = true;
+                        }
+                        else
+                        {
+                            return;
+                        }
                     }
 
                     break;
@@ -144,6 +133,30 @@ internal static class Program
                     break;
             }
         }
+    }
+    
+    
+    public static string ByteArrayToString(byte[] byteArray)
+    {
+        var hex = new StringBuilder(byteArray.Length * 2);
+        foreach (var b in byteArray)
+            hex.Append($"{b:x2}");
+        return hex.ToString();
+    }
+
+    public static void DecryptCookies(string pass)
+    {
+        var encryptedKey = KeyGenerator.ReadFromFile("keys");
+        var decryptedKey = KeyGenerator.DecryptKey(encryptedKey, pass);
+        var cipher = new Cipher(decryptedKey);
+        cipher.DecryptFile(DestFile, DestFile2);
+    }
+            
+    public static void EncryptCookies()
+    {
+        var key = KeyGenerator.ReadFromFile("keys");
+        var cipher0 = new Cipher(key);
+        cipher0.EncryptFile(SourceFile, DestFile);
     }
             
 
