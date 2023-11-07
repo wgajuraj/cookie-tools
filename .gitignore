@@ -2,6 +2,7 @@
 *.suo
 *.user
 *.sqlite
+*.txt
 _ReSharper.*
 bin
 obj
