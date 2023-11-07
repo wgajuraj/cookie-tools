@@ -13,46 +13,11 @@ internal static class Program
 
     private static void Main()
     {
+        Console.Clear();
+        
         if (!File.Exists("keys"))
         {
-            var validAnswer = false;
-            while (!validAnswer)
-            {
-                Console.WriteLine("Key not found. Do you want to encrypt cookies? [Y/N]");
-                var ans1 = Console.ReadKey();
-
-                switch (ans1.KeyChar)
-                {
-                    case 'y':
-                        Console.Clear();
-
-                        var key = KeyGenerator.GenerateKey();
-                        Console.Write("Choose a new password: ");
-                        var pass = Console.ReadLine();
-                        Console.Clear();
-                        if (pass != null)
-                        {
-                            var encryptedKey = KeyGenerator.EncryptKey(key, pass);
-                            KeyGenerator.WriteToFile(encryptedKey, "keys");
-                        }
-                        else
-                        {
-                            return;
-                        }
-
-                        var cipher0 = new Cipher(key);
-                        cipher0.EncryptFile(SourceFile, DestFile);
-                        Console.WriteLine("File encrypted successfully");
-                        validAnswer = true;
-                        break;
-                    case 'n':
-                        Console.Clear();
-                        return;
-                    default:
-                        Console.Clear();
-                        break;
-                }
-            }
+            CreateKeys();
         }
 
         var validSelection = false;
@@ -62,9 +27,10 @@ internal static class Program
 
             Console.WriteLine("(1) Launch Browser");
             Console.WriteLine("(2) Change Password");
-            Console.WriteLine("(3) ");
+            Console.WriteLine("(3) Read Cookies");
             Console.WriteLine();
-            Console.WriteLine("(9) Decrypt cookies");
+            Console.WriteLine("(8) Regenerate Key");
+            Console.WriteLine("(9) Decrypt Cookies");
             Console.WriteLine("(0) Exit");
             Console.WriteLine();
 
@@ -89,7 +55,8 @@ internal static class Program
                     break;
                 case "3":
                     Console.Clear();
-                    Console.WriteLine("\nYou selected Task 3");
+                    
+                    
 
                     break;
 
@@ -155,10 +122,51 @@ internal static class Program
     public static void EncryptCookies()
     {
         var key = KeyGenerator.ReadFromFile("keys");
-        var cipher0 = new Cipher(key);
-        cipher0.EncryptFile(SourceFile, DestFile);
+        var cipher = new Cipher(key);
+        cipher.EncryptFile(SourceFile, DestFile);
     }
-            
+
+
+    public static void CreateKeys()
+    {
+        var validAnswer = false;
+        while (!validAnswer)
+        {
+            Console.WriteLine("Key not found. Do you want to encrypt cookies? [Y/N]");
+            var ans1 = Console.ReadKey();
+
+            switch (ans1.KeyChar)
+            {
+                case 'y':
+                    Console.Clear();
+
+                    var key = KeyGenerator.GenerateKey();
+                    Console.Write("Choose a new password: ");
+                    var pass = Console.ReadLine();
+                    Console.Clear();
+                    if (pass != null)
+                    {
+                        var encryptedKey = KeyGenerator.EncryptKey(key, pass);
+                        KeyGenerator.WriteToFile(encryptedKey, "keys");
+                    }
+                    else
+                    {
+                        Environment.Exit(0);
+                    }
+
+                    EncryptCookies();
+                    Console.WriteLine("File encrypted successfully");
+                    validAnswer = true;
+                    break;
+                case 'n':
+                    Console.Clear();
+                    return;
+                default:
+                    Console.Clear();
+                    break;
+            }
+        }
+    }
 
     // TEST //
                 

@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CookieLocker", "CookieLocker\CookieLocker.csproj", "{8AC4561B-B76E-46D6-B4C5-7277E979D306}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CookieStealer", "CookieStealer\CookieStealer.csproj", "{CF23A8EA-208A-4749-B895-D4A63ADCF821}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{8AC4561B-B76E-46D6-B4C5-7277E979D306}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8AC4561B-B76E-46D6-B4C5-7277E979D306}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8AC4561B-B76E-46D6-B4C5-7277E979D306}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CF23A8EA-208A-4749-B895-D4A63ADCF821}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CF23A8EA-208A-4749-B895-D4A63ADCF821}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CF23A8EA-208A-4749-B895-D4A63ADCF821}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CF23A8EA-208A-4749-B895-D4A63ADCF821}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

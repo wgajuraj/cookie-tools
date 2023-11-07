@@ -1,6 +1,7 @@
 ﻿.idea/
 *.suo
 *.user
+*.sqlite
 _ReSharper.*
 bin
 obj
