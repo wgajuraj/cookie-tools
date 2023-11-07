@@ -1,6 +1,6 @@
 # cookie-locker
 
-References:
+# References:
 
 Cookie Stealer - https://github.com/tarasverq/ChromeCookieExtractor/tree/master
 
