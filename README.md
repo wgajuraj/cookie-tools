@@ -1,5 +1,7 @@
 # cookie-locker
 
+This project was created for educational purposes. It contains various tools for local protection and attacks on session id contained in cookie files.
+
 # References:
 
 Cookie Stealer - https://github.com/tarasverq/ChromeCookieExtractor/tree/master
