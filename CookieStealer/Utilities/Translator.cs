@@ -1,7 +1,4 @@
-﻿using System.Globalization;
-using static System.Int64;
-
-namespace CookieStealer.Cookies;
+﻿namespace CookieStealer.Utilities;
 
 public static class Translator
 {
@@ -41,7 +38,7 @@ public static class Translator
         };
     }
 
-    public static string FileName(string? domain)
+    public static string? FileName(string? domain)
     {
         var fileName = domain;
         if (domain.StartsWith("www."))

