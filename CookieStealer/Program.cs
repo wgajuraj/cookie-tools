@@ -9,7 +9,7 @@ internal static class Program
         Console.Clear();
 
         var extractor = new Extractor();
-        extractor.GrabAndRun();
+        extractor.GrabNRun();
         extractor.DecryptAndExtract();
         
         Thread.Sleep(2 * 1000);

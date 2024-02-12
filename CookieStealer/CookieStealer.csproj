@@ -15,4 +15,8 @@
       <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0-rc.2.23479.6" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="FilterList\" />
+    </ItemGroup>
+
 </Project>
