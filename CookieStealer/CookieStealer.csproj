@@ -16,7 +16,14 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="FilterList\" />
+      <None Remove="FilterList\ads-nl.txt" />
+      <Content Include="FilterList\ads.txt">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Content>
+      <None Remove="FilterList\keywords.txt" />
+      <Content Include="FilterList\keywords.txt">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Content>
     </ItemGroup>
 
 </Project>

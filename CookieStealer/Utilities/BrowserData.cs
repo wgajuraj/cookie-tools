@@ -4,8 +4,10 @@
     {
         public string? PathToLocalState { get; set; }
         public string? PathToCookiesFile { get; set; }
+        public List<string>? ProfileList { get; set; }
         public string? ProcessName { get; set; }
         public bool NeedDecryption { get; set; }
+        public bool ProfilesPossible { get; set; }
         public bool Exists { get; set; }
         public bool IsPrimary { get; set; }
     }
@@ -28,8 +30,10 @@
                     {
                         PathToLocalState = @$"{localAppDataPath}\Google\Chrome\{chromiumDefaultLocalState}",
                         PathToCookiesFile = @$"{localAppDataPath}\Google\Chrome\{chromiumDefaultCookies}",
+                        ProfileList = new List<string>(),
                         ProcessName = "chrome",
-                        NeedDecryption = true
+                        NeedDecryption = true,
+                        ProfilesPossible = true
                     }
                 },
                 {
@@ -37,8 +41,10 @@
                     {
                         PathToLocalState = @$"{localAppDataPath}\Microsoft\Edge\{chromiumDefaultLocalState}",
                         PathToCookiesFile = @$"{localAppDataPath}\Microsoft\Edge\{chromiumDefaultCookies}",
+                        ProfileList = new List<string>(),
                         ProcessName = "msedge",
-                        NeedDecryption = true
+                        NeedDecryption = true,
+                        ProfilesPossible = true
                     }
                 },
                 {
@@ -47,7 +53,8 @@
                         PathToLocalState = null,
                         PathToCookiesFile = null,
                         ProcessName = "firefox",
-                        NeedDecryption = false
+                        NeedDecryption = false,
+                        ProfilesPossible = false
                     }
                 },
                 {
@@ -56,7 +63,8 @@
                         PathToLocalState = @$"{appDataPath}\Opera Software\Opera Stable\Local State",
                         PathToCookiesFile = @$"{appDataPath}\Opera Software\Opera Stable\Default\Network\Cookies",
                         ProcessName = "opera",
-                        NeedDecryption = true
+                        NeedDecryption = true,
+                        ProfilesPossible = false
                     }
                 },
                 {
@@ -65,7 +73,8 @@
                         PathToLocalState = @$"{appDataPath}\Opera Software\Opera GX Stable\Local State",
                         PathToCookiesFile = @$"{appDataPath}\Opera Software\Opera GX Stable\Network\Cookies",
                         ProcessName = "opera",
-                        NeedDecryption = true
+                        NeedDecryption = true,
+                        ProfilesPossible = false
                     }
                 },
                 {
@@ -73,8 +82,10 @@
                     {
                         PathToLocalState = @$"{localAppDataPath}\BraveSoftware\Brave-Browser\{chromiumDefaultLocalState}",
                         PathToCookiesFile = @$"{localAppDataPath}\BraveSoftware\Brave-Browser\{chromiumDefaultCookies}",
+                        ProfileList = new List<string>(),
                         ProcessName = "brave",
-                        NeedDecryption = true
+                        NeedDecryption = true,
+                        ProfilesPossible = true
                     }
                 }
             };
@@ -95,6 +106,19 @@
                          .Where(browser => Path.Exists(browser.Value.PathToCookiesFile)))
             {
                 browser.Value.Exists = true;
+            }
+
+            foreach (var browser in Browsers)
+            {
+                if (!browser.Value.ProfilesPossible) continue;
+                var parentDirectory = Directory.GetParent(browser.Value.PathToLocalState).FullName;
+                var profileDirectories = Directory.GetDirectories(parentDirectory, "Profile *");
+
+                foreach (var profileDirectory in profileDirectories)
+                {
+                    var cookiesFilePath = Path.Combine(profileDirectory, "Network", "Cookies");
+                    browser.Value.ProfileList.Add(cookiesFilePath);
+                }
             }
 
             var sortedBrowsers = Browsers.OrderByDescending(b =>
