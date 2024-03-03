@@ -4,12 +4,6 @@ public class Log
 {
     public Log()
     {
-        if (!Directory.Exists("logs"))
-        {
-            Directory.CreateDirectory("logs");
-        }
+        if (!Directory.Exists("logs")) Directory.CreateDirectory("logs");
     }
-    
-    
-    
 }

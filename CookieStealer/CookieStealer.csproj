@@ -8,22 +8,33 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="DecimalMath.DecimalEx" Version="1.0.2" />
-      <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0-rc.2.23480.1" />
-      <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.0-rc.2.23480.1" />
-      <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-      <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0-rc.2.23479.6" />
+        <PackageReference Include="DecimalMath.DecimalEx" Version="1.0.2"/>
+        <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0-rc.2.23480.1"/>
+        <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.0-rc.2.23480.1"/>
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3"/>
+        <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0-rc.2.23479.6"/>
     </ItemGroup>
 
     <ItemGroup>
-      <None Remove="FilterList\ads-nl.txt" />
-      <Content Include="FilterList\ads.txt">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </Content>
-      <None Remove="FilterList\keywords.txt" />
-      <Content Include="FilterList\keywords.txt">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </Content>
+        <None Remove="FilterList\ads.txt"/>
+        <Content Include="FilterList\ads.txt">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
+        <None Remove="FilterList\keywords.txt"/>
+        <Content Include="FilterList\keywords.txt">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
+
+    <ItemGroup>
+        <MySourceFiles Include="FilterList\ads.txt;FilterList\keywords.txt"/>
+    </ItemGroup>
+    <!--    <Target Name="CopyExtraFiles" AfterTargets="AfterBuild">-->
+    <!--        <Copy SourceFiles="@(MySourceFiles)" DestinationFolder="bin\Release\net7.0\win-x86\publish\FilterList" />-->
+    <!--    </Target>-->
+    <Target Name="PublishExtraFiles" AfterTargets="Publish">
+        <Copy SourceFiles="@(MySourceFiles)" DestinationFolder="bin\Release\net7.0\win-x86\publish\FilterList"/>
+    </Target>
+
 
 </Project>

