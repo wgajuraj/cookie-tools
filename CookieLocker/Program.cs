@@ -6,52 +6,108 @@ namespace CookieLocker;
 
 internal static class Program
 {
-    private const string filesPath = "files";
+    private const string FilesPath = "files";
     private const string InputFile = "files\\file.txt";
     private const string EncryptedFile = "files\\file.encrypted";
     private const string DecryptedFile = "files\\file.decrypted";
     private const string KeyPath = "files\\key.bin";
-    private const string hashPath = "files\\hash";
+    private const string HashPath = "files\\hash";
+    
+    private const string ArgChangePassword = "change-password";
+    private const string ArgDecrypt = "decrypt";
+    private const string ArgRegenerateKey = "regenerate-key";
     
     public static void Main(string[] args)
     {
         Console.Clear();
         
+        // TEMP
+
+        var yubi = new YubiKeyEncryption();
+        
+        // var encryptedBytes = yubi.EncryptFile(InputFile);
+        // File.WriteAllBytes(EncryptedFile, encryptedBytes);
+        var decryptedBytes = yubi.DecryptFile(EncryptedFile);
+        File.WriteAllBytes(DecryptedFile, decryptedBytes);
+        
+        
+        Environment.Exit(0);
+        // TEMP
+        
+        
+        
         var browsers = new BrowserData().Browsers;
+        Directory.CreateDirectory(FilesPath);
         
-        Directory.CreateDirectory(filesPath);
         
-        if (Directory.GetFiles(filesPath).Length != 0)
-        {
-            // Decrypt, launch and encrypt
-            var password = PasswordPrompt();
-            var browserName = AesEncryption.DecryptFile(EncryptedFile, DecryptedFile, browsers, KeyPath, password);
-            // if (args[0] == "decrypt")
-            // {
-            //     Environment.Exit(0);
-            // }
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = browsers[browserName].ProcessName,
-                    UseShellExecute = true,
-                }
-            };
-            process.Start();
-            process.WaitForExit();
-            Console.WriteLine("Browser Stopped");
-            Thread.Sleep(2*1000);
-            AesEncryption.ReEncryptFile(browsers, DecryptedFile, EncryptedFile, KeyPath, password);
-            
-        }
-        else
+        
+        if (Directory.GetFiles(FilesPath).Length == 0)
         {
             EncryptionProcess(browsers);
+            return;
         }
-
+        
+        var password = PasswordPrompt();
+        
+        switch (args.Length)
+        {
+            case 0:
+                var browserName = AesEncryption.DecryptFile(EncryptedFile, DecryptedFile, browsers, KeyPath, password);
+                var process = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = browsers[browserName].ProcessName,
+                        UseShellExecute = true,
+                    }
+                };
+                process.Start();
+                AnsiConsole.MarkupLine("Browser started successfully.");
+                AnsiConsole.MarkupLine("Do [red]NOT[/] close this window.");
+                process.WaitForExit();
+                AnsiConsole.MarkupLine("Browser has closed.");
+                Thread.Sleep(500);
+                AesEncryption.ReEncryptFile(browsers, DecryptedFile, EncryptedFile, KeyPath, password);
+                break;
+            
+            case 1 when args[0] == ArgChangePassword:
+                var newPassword = NewPasswordPrompt();
+                var encryptedKey = File.ReadAllBytes(KeyPath);
+                var key = AesEncryption.DecryptKey(encryptedKey, password);
+                var newEncryptedKey = AesEncryption.EncryptKey(key, newPassword);
+                File.WriteAllBytes(KeyPath, newEncryptedKey);
+                File.WriteAllText(HashPath, AesEncryption.HashPassword(newPassword));
+                AnsiConsole.MarkupLine("[green]Password changed successfully.[/]");
+                break;
+            
+            case 1 when args[0] == ArgDecrypt:
+                AesEncryption.DecryptFile(EncryptedFile, DecryptedFile, browsers, KeyPath, password);
+                File.Delete(EncryptedFile);
+                File.Delete(HashPath);
+                File.Delete(KeyPath);
+                AnsiConsole.MarkupLine("[green]File decrypted successfully.[/]");
+                break;
+            
+            case 1 when args[0] == ArgRegenerateKey:
+                var newKey = AesEncryption.GenerateEncryptionKey();
+                var modifiedEncryptedKey = AesEncryption.EncryptKey(newKey, password);
+                File.WriteAllBytes(KeyPath, modifiedEncryptedKey);
+                AesEncryption.ReEncryptFile(browsers, DecryptedFile, EncryptedFile, KeyPath, password);
+                AnsiConsole.MarkupLine("[green]Key regenerated successfully.[/]");
+                break;
+            
+            default:
+                AnsiConsole.MarkupLine("[red]Invalid arguments.[/]");
+                break;
+        }
+        
     }
 
+    
+    
+    
+    
+    
     private static void EncryptionProcess(Dictionary<string,BrowserInfo> browsers)
     {
         if (!AnsiConsole.Confirm("Your browser cookies will be encrypted. Do you want to continue?"))
@@ -115,32 +171,14 @@ internal static class Program
                 inputFilePath = browsers[chosenBrowserName].PathToCookiesFile;
             }
         }
-        
-        // Console.WriteLine(inputFilePath);
 
-        string password = null!;
-        string repeatPassword = null!;
-        do
-        {
-            password = AnsiConsole.Prompt(
-                new TextPrompt<string>("Enter password: ")
-                    .Secret());
-
-            repeatPassword = AnsiConsole.Prompt(
-                new TextPrompt<string>("Repeat password: ")
-                    .Secret());
-
-            if (password != repeatPassword)
-            {
-                AnsiConsole.MarkupLine("Passwords do not match. Try again.");
-            }
-        } while (password != repeatPassword);
+        var password = NewPasswordPrompt();
         
         var encryptedKey= AesEncryption.EncryptKey(AesEncryption.GenerateEncryptionKey(), password);
         File.WriteAllBytes(KeyPath, encryptedKey);
         
         var passwordHash = AesEncryption.HashPassword(password);
-        File.WriteAllText(hashPath, passwordHash);
+        File.WriteAllText(HashPath, passwordHash);
 
         if (chosenBrowserName != null)
         {
@@ -161,12 +199,37 @@ internal static class Program
             password = AnsiConsole.Prompt(
                 new TextPrompt<string>("Enter password: ")
                     .Secret());
-            access = AesEncryption.VerifyPassword(password, hashPath);
+            access = AesEncryption.VerifyPassword(password, HashPath);
             if (!access)
             {
-                AnsiConsole.MarkupLine("Incorrect password. Try again.");
+                AnsiConsole.MarkupLine("[yellow]Incorrect password. Try again.[/]");
             }
         } while (!access);
+        
+        AnsiConsole.MarkupLine("[green]Correct password.[/]");
+
+        return password;
+    }
+
+    private static string NewPasswordPrompt()
+    {
+        string password = null!;
+        string repeatPassword = null!;
+        do
+        {
+            password = AnsiConsole.Prompt(
+                new TextPrompt<string>("New password: ")
+                    .Secret());
+
+            repeatPassword = AnsiConsole.Prompt(
+                new TextPrompt<string>("Repeat password: ")
+                    .Secret());
+
+            if (password != repeatPassword)
+            {
+                AnsiConsole.MarkupLine("Passwords do not match. Try again.");
+            }
+        } while (password != repeatPassword);
 
         return password;
     }

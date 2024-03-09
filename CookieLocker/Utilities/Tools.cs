@@ -7,14 +7,16 @@ public static class Tools
 {
     public static void ProcessManager(BrowserInfo browser, string browserName)
     {
+        var processes = Process.GetProcessesByName(browser.ProcessName);
+        
+        if (processes.Length == 0) return;
+        
         if (!AnsiConsole.Confirm(
                 $"Can't copy Cookies file because browser is currently running. Do you want to try to close {browserName}?"))
         {
             AnsiConsole.MarkupLine("Exiting...");
             Environment.Exit(0);
         }
-
-        var processes = Process.GetProcessesByName(browser.ProcessName);
 
         foreach (var process in processes)
         {

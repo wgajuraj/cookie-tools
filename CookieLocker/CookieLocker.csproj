@@ -9,6 +9,19 @@
 
     <ItemGroup>
       <PackageReference Include="Spectre.Console" Version="0.48.1-preview.0.32" />
+      <PackageReference Include="Yubico.YubiKey" Version="1.9.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="GenerateKeys.bat" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="YubiKeyGen.bat" />
+      <Content Include="YubiKeyGen.bat">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </Content>
+      <None Remove="YubiKeyGen.ps1" />
     </ItemGroup>
 
 </Project>

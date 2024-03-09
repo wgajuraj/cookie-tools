@@ -69,7 +69,7 @@ public static class AesEncryption
         return passwordHash.SequenceEqual(storedPasswordHash);
     }
 
-    private static byte[] DecryptKey(byte[] encryptedKeyWithIv, string password)
+    public static byte[] DecryptKey(byte[] encryptedKeyWithIv, string password)
     {
         var iv = new byte[16];
         var salt = new byte[16];
