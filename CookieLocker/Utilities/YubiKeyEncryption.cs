@@ -5,8 +5,8 @@ using System.Text;
 using Spectre.Console;
 using Yubico.Core.Buffers;
 using Yubico.YubiKey;
-using Yubico.YubiKey.Cryptography;
 using Yubico.YubiKey.Piv;
+using static Yubico.YubiKey.Cryptography.RsaFormat;
 
 namespace CookieLocker.Utilities;
 
@@ -28,10 +28,16 @@ public class YubiKeyEncryption
 
     private IYubiKeyDevice? GetDevice()
     {
-        var list = YubiKeyDevice.FindAll();
-        if (list.Count() != 0) return list.First();
-        AnsiConsole.MarkupLine("[red]YubiKey not found.[/]");
-        return null;
+        var list = YubiKeyDevice.FindAll().ToList();
+        while (!list.Any())
+        {
+            AnsiConsole.Clear();
+            AnsiConsole.MarkupLine("[red]YubiKey not found. Insert the YubiKey and try again.[/]");
+            AnsiConsole.Prompt(new TextPrompt<string>("Press Enter to continue...").AllowEmpty());
+            list = YubiKeyDevice.FindAll().ToList();
+        }
+        AnsiConsole.Clear();
+        return list.First();
     }
 
     private static bool KeyCollectorPrompt(KeyEntryData keyEntryData)
@@ -61,8 +67,8 @@ public class YubiKeyEncryption
         
         PivSessionConnected = new PivSession(YubiKey);
     }
-    
-    public byte[] EncryptFile(string filePath)
+
+    private byte[] GetPublicKey()
     {
         X509Certificate2? certificate = null;
         try
@@ -71,31 +77,100 @@ public class YubiKeyEncryption
         }
         catch (InvalidOperationException e)
         {
-            AnsiConsole.MarkupLine($"[yellow]No certificate found. Creating a new one.[/]");
+            AnsiConsole.MarkupLine($"[yellow]No certificate found. Creating a new one.\n[/]");
             GenerateCertificate();
         }
         
         certificate = PivSessionConnected.GetCertificate(Slot);
-        var publicKey = certificate.GetPublicKey();
+        
+        return certificate.GetPublicKey();
+    }
+    
+    public void EncryptFile(
+        string filePath = null!,
+        string browserName = null!,
+        string profileName = null!)
+    {
+        byte[] prefix;
+        byte[] encryptedKey;
+        
+        using var aes = Aes.Create();
+        
+        if (filePath == null!)
+        {
+            using var fs = new FileStream(Program.EncryptedFile, FileMode.Open, FileAccess.Read);
+            using var br = new BinaryReader(fs);
+            prefix = br.ReadBytes(12);
+            encryptedKey = br.ReadBytes(256);
+            aes.IV = br.ReadBytes(16);
+
+            aes.Key = DecryptKey(encryptedKey);
+            (filePath, _) = Tools.ParsePrefix(prefix);
+        }
+        else
+        {
+            aes.GenerateKey();
+            aes.GenerateIV();
+            prefix = Tools.PrefixGenerator(browserName, profileName, false);
+        }
+        
+        var fileData = File.ReadAllBytes(filePath);
+        var encryptor = aes.CreateEncryptor();
+        var encryptedFileData = encryptor.TransformFinalBlock(fileData, 0, fileData.Length);
         
         using var rsa = RSA.Create();
-        rsa.ImportRSAPublicKey(publicKey, out _);
+        rsa.ImportRSAPublicKey(GetPublicKey(), out _);
+        encryptedKey = rsa.Encrypt(aes.Key, RSAEncryptionPadding.Pkcs1);
+
+        var encryptedFileContent = new byte[prefix.Length + encryptedKey.Length + aes.IV.Length + encryptedFileData.Length];
         
-        var fileBytes = File.ReadAllBytes(filePath);
-        return rsa.Encrypt(fileBytes, RSAEncryptionPadding.Pkcs1);
+        Buffer.BlockCopy(prefix, 0, encryptedFileContent, 0, prefix.Length);
+        Buffer.BlockCopy(encryptedKey, 0, encryptedFileContent, prefix.Length, encryptedKey.Length);
+        Buffer.BlockCopy(aes.IV, 0, encryptedFileContent, prefix.Length + encryptedKey.Length, aes.IV.Length);
+        Buffer.BlockCopy(encryptedFileData, 0, encryptedFileContent, prefix.Length + encryptedKey.Length + aes.IV.Length, encryptedFileData.Length);
+        
+        File.WriteAllBytes(Program.EncryptedFile, encryptedFileContent);
+        File.Delete(filePath);
     }
 
-    public byte[] DecryptFile(string filePath)
+    public string DecryptFile()
     {
-        var encryptedData = File.ReadAllBytes(filePath);
+        using var aes = Aes.Create();
+        using var fs = new FileStream(Program.EncryptedFile, FileMode.Open, FileAccess.Read);
+        using var br = new BinaryReader(fs);
+        var prefix = br.ReadBytes(12);
+        var encryptedKey = br.ReadBytes(256);
+        aes.IV = br.ReadBytes(16);
+        var encryptedFileData = br.ReadBytes((int)fs.Length - 60);
         
+        aes.Key = DecryptKey(encryptedKey);
+        var decryptor = aes.CreateDecryptor();
+        var fileData = decryptor.TransformFinalBlock(encryptedFileData, 0, encryptedFileData.Length);
+        
+        
+        var (outputFilePath, browserName) = Tools.ParsePrefix(prefix);
+        
+        if (Tools.IsMoreRecent(outputFilePath))
+        {
+            if (!AnsiConsole.Confirm("Cookie file is more recent then encrypted one. Do you want to continue?"))
+            {
+                AnsiConsole.MarkupLine("Exiting...");
+                Environment.Exit(0);
+            }
+        }
+        
+        File.WriteAllBytes(outputFilePath, fileData);
+        
+        return browserName;
+    }
+    
+    private byte[] DecryptKey(byte[] encryptedKey)
+    {
         PivSessionConnected.KeyCollector = KeyCollectorPrompt;
-
-        var formattedData = PivSessionConnected.Decrypt(Slot, encryptedData);
-        byte[] decryptedData;
-        RsaFormat.TryParsePkcs1Decrypt(formattedData, out decryptedData);
+        var paddedKey = PivSessionConnected.Decrypt(Slot, encryptedKey);
+        _ = TryParsePkcs1Decrypt(paddedKey, out var key);
         
-        return decryptedData;
+        return key;
     }
     
 }

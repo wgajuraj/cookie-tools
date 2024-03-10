@@ -95,20 +95,11 @@ public static class AesEncryption
         string outputFilePath,
         string encryptedKeyPath,
         string password,
-        string? browserName,
-        string? profileName
+        string browserName,
+        string profileName
         )
     {
-        var prefix = new byte[10];
-        if (browserName != null)
-        {
-            var profileIndex = profileName == "Default"
-                ? 'D'
-                : profileName[^1];
-            var prefixString = $"{browserName},{profileIndex}";
-            var prefixBytes = Encoding.UTF8.GetBytes(prefixString);
-            Array.Copy(prefixBytes, prefix, prefixBytes.Length);
-        }
+        var prefix = Tools.PrefixGenerator(browserName, profileName);
         
         var encryptedKeyWithIv = File.ReadAllBytes(encryptedKeyPath);
         var key = DecryptKey(encryptedKeyWithIv, password);
@@ -129,6 +120,8 @@ public static class AesEncryption
         var buffer = new byte[4096];
         int bytesRead;
         while ((bytesRead = fsInput.Read(buffer, 0, buffer.Length)) > 0) cryptoStream.Write(buffer, 0, bytesRead);
+        
+        File.Delete(inputFilePath);
     }
 
     public static string DecryptFile(
@@ -146,30 +139,14 @@ public static class AesEncryption
         using var aes = Aes.Create();
         aes.Key = key;
 
-        var prefixBytes = new byte[10];
+        var prefixBytes = new byte[12];
         fsInput.Read(prefixBytes, 0, prefixBytes.Length);
         
         var iv = new byte[16];
         fsInput.Read(iv, 0, iv.Length);
         aes.IV = iv;
 
-        var prefix = Encoding.UTF8.GetString(prefixBytes);
-        var browserInfo = prefix.Split(',').ToList();
-        string outputFilePath;
-        if (prefixBytes.All(b => b == 0))
-        {
-            browserInfo[0] = "";
-            outputFilePath = defaultOutputPath;
-        }
-        else
-        {
-            var browser = browsers[browserInfo[0]];
-            var profileIndex = browserInfo[1][0];
-            outputFilePath = profileIndex == 'D'
-                ? browser.PathToCookiesFile
-                : browser.ProfileList[int.Parse(profileIndex.ToString()) - 2];
-            Tools.ProcessManager(browser, browserInfo[0]);
-        }
+        var (outputFilePath, browserName) = Tools.ParsePrefix(prefixBytes);
         
         using var fsOutput = new FileStream(outputFilePath, FileMode.Create, FileAccess.Write);
         
@@ -180,7 +157,7 @@ public static class AesEncryption
         int bytesRead;
         while ((bytesRead = fsInput.Read(buffer, 0, buffer.Length)) > 0) cryptoStream.Write(buffer, 0, bytesRead);
 
-        return browserInfo[0];
+        return browserName;
     }
     
     public static void ReEncryptFile(
@@ -193,27 +170,11 @@ public static class AesEncryption
     {
         var fsEncryptedInput = new FileStream(encryptedFilePath, FileMode.Open, FileAccess.Read);
         
-        var prefixBytes = new byte[10];
+        var prefixBytes = new byte[12];
         fsEncryptedInput.Read(prefixBytes, 0, prefixBytes.Length);
         fsEncryptedInput.Dispose();
-        
-        var prefix = Encoding.UTF8.GetString(prefixBytes);
-        var browserInfo = prefix.Split(',').ToList();
-        string inputFilePath;
-        if (prefixBytes.All(b => b == 0))
-        {
-            browserInfo[0] = "";
-            inputFilePath = defaultOutputPath;
-        }
-        else
-        {
-            var browser = browsers[browserInfo[0]];
-            var profileIndex = browserInfo[1][0];
-            inputFilePath = profileIndex == 'D'
-                ? browser.PathToCookiesFile
-                : browser.ProfileList[int.Parse(profileIndex.ToString()) - 2];
-            Tools.ProcessManager(browser, browserInfo[0]);
-        }
+
+        var (inputFilePath, _) = Tools.ParsePrefix(prefixBytes);
         
         var encryptedKeyWithIv = File.ReadAllBytes(encryptedKeyPath);
         var key = DecryptKey(encryptedKeyWithIv, password);
@@ -238,5 +199,7 @@ public static class AesEncryption
         fsInput.Dispose();
         File.Delete(inputFilePath);
     }
+    
+    
     
 }
